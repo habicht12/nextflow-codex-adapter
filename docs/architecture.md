@@ -13,6 +13,14 @@ declared tools, validates their arguments and validates the final output. Nextfl
 module calls return over the existing TLS/capability-protected RPC transport.
 Skills use Nextflow's resolved content, not the user's Codex skill collection.
 
+Before starting Codex, the runner snapshots all pre-existing task files and
+directories as read-only inputs. This includes Nextflow bookkeeping files as a
+conservative default. Both staged names and canonical targets are protected;
+only canonical targets enter the kernel sandbox policy. New outputs must use
+new paths outside these protected directories. No chmod or chown is applied to
+inputs, since hardlinks share their source inode. Writes check the opened inode
+before truncation and reject shared hardlinks.
+
 Filesystem tools enforce task and staged-input boundaries. When a task also has
 shell access, filesystem tools run as workers under Codex's OS sandbox: a background
 shell cannot race the unsandboxed runner into following a changed symlink. Worker

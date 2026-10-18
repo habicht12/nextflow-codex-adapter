@@ -10,7 +10,7 @@ record Answer {
 }
 
 process uppercase {
-    container 'ghcr.io/habicht12/nf-agent-codex:0.1.0'
+    container 'ghcr.io/habicht12/nf-agent-codex:0.1.1'
     input:
     text: String
     output:

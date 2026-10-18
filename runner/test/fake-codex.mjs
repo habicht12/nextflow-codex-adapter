@@ -38,6 +38,10 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     reply(m.id, { turn: { id: 'turn' } });
     if (fault === 'timeout') return;
     if (fault === 'interactive') return send({ id: 50, method: 'item/commandExecution/requestApproval', params: {} });
+    if (fault === 'write_input') {
+      queue = [['write', { path: 'input.txt', content: 'modified input' }]];
+      return next();
+    }
     if (tools.some((t) => t.name === 'uppercase')) {
       const word = m.params.input[0].text.match(/provided tool: (\w+)/)?.[1] || 'hello';
       queue = [['uppercase', { text: word }]];

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 
 const within = (root, target) => target === root || target.startsWith(root + path.sep);
@@ -8,6 +9,7 @@ export class TaskFiles {
     this.root = root;
     this.denied = denied;
     this.inputs = new Set();
+    this.inputTargets = new Set();
   }
 
   async init() {
@@ -17,8 +19,15 @@ export class TaskFiles {
       for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
         if (++visited > 10000) throw new Error('Task staging contains more than 10000 entries');
         const file = path.join(dir, entry.name);
-        if (entry.isSymbolicLink()) this.inputs.add(await fs.realpath(file));
-        else if (entry.isDirectory()) await scan(file);
+        // Snapshot every pre-existing entry before Codex starts. Copies and hard
+        // links look like ordinary files; symlink detection alone misses them.
+        // Preserve both the staged name and its target, without chmod/chown (which
+        // would also change the original inode for a hard-linked input).
+        this.inputs.add(file);
+        const target = await fs.realpath(file);
+        this.inputs.add(target);
+        this.inputTargets.add(target);
+        if (entry.isDirectory()) await scan(file);
       }
     };
     await scan(this.root);
@@ -28,6 +37,7 @@ export class TaskFiles {
   async resolve(name = '.', write = false) {
     if (typeof name !== 'string' || name.includes('\0')) throw new Error('Invalid file path');
     const file = path.resolve(this.root, name);
+    if (write && [...this.inputs].some((input) => within(input, file))) throw new Error('Staged inputs are read-only');
     let real;
     try { real = await fs.realpath(file); }
     catch (error) {
@@ -37,7 +47,7 @@ export class TaskFiles {
     if (this.denied.some((dir) => within(dir, real))) throw new Error('Access to runner credentials or configuration is denied');
     if (write ? !within(this.root, real) : !within(this.root, real) && ![...this.inputs].some((p) => within(p, real)))
       throw new Error('Path is outside the task and its staged inputs');
-    // Staged symlinks are inputs, even if their targets happen to be inside this task.
+    // An output symlink must not provide another route to a protected input.
     if (write && [...this.inputs].some((p) => within(p, real))) throw new Error('Staged inputs are read-only');
     return real;
   }
@@ -51,7 +61,15 @@ export class TaskFiles {
   async write(name, content) {
     if (typeof content !== 'string' || Buffer.byteLength(content) > 1024 * 1024) throw new Error('Invalid or oversized file content');
     const file = await this.resolve(name, true);
-    await fs.writeFile(file, content);
+    // Check the opened inode before truncating. A new hardlink alias must not
+    // turn an apparently new output path into a write to shared source data.
+    const handle = await fs.open(file, constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o666);
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.nlink > 1) throw new Error('Cannot write a non-regular or hard-linked file');
+      await handle.truncate(0);
+      await handle.writeFile(content);
+    } finally { await handle.close(); }
     return name;
   }
 
@@ -80,7 +98,10 @@ export function shellPermissions(files, home) {
   const filesystem = { ':minimal': 'read' };
   for (const dir of ['/usr', '/bin', '/lib', '/lib64', '/etc']) filesystem[dir] = 'read';
   filesystem[files.root] = 'write';
-  for (const input of files.inputs) filesystem[input] = 'read';
+  // The kernel policy takes canonical targets. Codex rejects a read-only mount
+  // on a symlink beneath a writable directory; lexical names remain protected
+  // by TaskFiles.resolve, while the target mount prevents shell writes.
+  for (const input of files.inputTargets) filesystem[input] = 'read';
   // Codex re-executes its sandbox helper from this directory. Expose only those
   // helpers; :minimal leaves the rest of the login directory inaccessible.
   filesystem[path.join(home, 'tmp', 'arg0-linux')] = 'read';

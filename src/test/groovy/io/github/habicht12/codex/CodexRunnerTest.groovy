@@ -16,7 +16,7 @@ class CodexRunnerTest extends Specification {
         def runner = new CodexRunner()
         expect:
         runner.name == 'codex'
-        runner.defaultContainer == 'ghcr.io/habicht12/nf-agent-codex:0.1.0'
+        runner.defaultContainer == 'ghcr.io/habicht12/nf-agent-codex:0.1.1'
         runner.launchSpec.containerHarnessCommand == ['node', '/opt/nf-agent-codex/main.mjs']
         when:
         runner.run(new AgentRunnerRequest())

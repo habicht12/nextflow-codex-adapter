@@ -35,6 +35,10 @@ not require nested namespaces and remain covered by the Linux container CI.
 - Filesystem tools limit individual reads/writes to 1 MiB. `grep` is a literal-text
   search; `find` uses a substring pattern and bounded recursion. Use analysis
   processes for large datasets.
+- All files and directories present when the runner starts are protected from
+  writes, including `copy`, `link`, `symlink` and `rellink` staging. Create outputs
+  at new task paths, outside staged input directories. Source permissions are
+  unchanged. A newly introduced hardlink cannot be used as a writable output.
 - Opaque file handles returned by modules can be passed to another declared
   module. Direct filesystem access still requires the file to be staged or
   otherwise present in the agent's allowed container filesystem. Small structured
