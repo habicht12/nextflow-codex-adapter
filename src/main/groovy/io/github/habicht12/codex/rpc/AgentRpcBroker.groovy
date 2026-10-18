@@ -710,6 +710,7 @@ class AgentRpcBroker {
             protocolVersion: 2,
             invocationId: invocation.id,
             spec: AgentProtocolSpec.fromRequest(invocation.request) ] as Map
+        ((Map) frame.spec).put('requestTimeoutSeconds', invocation.request.requestTimeoutSeconds)
         final credential = invocation.request.apiKey
         if( invocation.request.credentialWithheld )
             warnWithheldCredential(invocation.request)

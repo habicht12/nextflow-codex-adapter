@@ -7,7 +7,8 @@ https://github.com/nextflow-io/nextflow/tree/v26.10.0/plugins/nf-agent-pi
 Imported files:
 
 - `src/main/groovy/io/github/habicht12/codex/rpc/*.groovy`: the three driver-side
-  RPC classes, with package names changed.
+  RPC classes, with package names changed. The start frame additionally carries
+  Nextflow's request timeout, which the original portable spec omits.
 - `runner/agent-rpc/`: the Go transport and its tests, unchanged.
 
 These implement the runner-neutral Nextflow wire protocol, not the Pi model
