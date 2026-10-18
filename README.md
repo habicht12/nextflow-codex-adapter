@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/habicht12/nextflow-codex-adapter/actions/workflows/ci.yml/badge.svg)](https://github.com/habicht12/nextflow-codex-adapter/actions/workflows/ci.yml)
 
+## Summary
+
 Run native Nextflow `agent` tasks with your **Codex ChatGPT login**, without a
 separate OpenAI API key. Write ordinary Nextflow agents, select the `codex` runner,
 and let Nextflow manage tasks, modules, files and resume.
@@ -11,7 +13,7 @@ tools, task files and skills. This is an independent community project. Native
 Nextflow agents and Codex dynamic tools are preview interfaces; use the tested
 versions below.
 
-## Quick start
+## Get Started
 
 Requires **Linux/WSL2, Java 21, Nextflow 26.10.0 or 26.10.2, Docker**, and a
 ChatGPT account with Codex access. Codex and the analysis runtime are included in
@@ -39,7 +41,9 @@ set `NXF_CODEX_HOME` when logging in and pass `--codex_home /absolute/path` when
 running the examples. See [authentication](docs/usage.md#authentication) if
 device-code login is unavailable.
 
-The example measures a small synthetic FASTA using a Nextflow process, then asks
+## Examples
+
+The QC example measures a small synthetic FASTA using a Nextflow process, then asks
 Codex to explain the results in **`results/qc/report.md`**. Expected measurements:
 2 sequences, 14 bases, 2 ambiguous bases, and 66.67% GC among A/C/G/T bases. The
 explanation can vary; the measurements come from the analysis tool.
@@ -52,7 +56,7 @@ nextflow run examples/qc -resume
 nextflow run examples/qc --model openai/gpt-6-luna
 ```
 
-## Use in your pipeline
+### Use in your pipeline
 
 Install the plugin once with `bin/install`, then add it to your Nextflow config:
 
@@ -115,4 +119,9 @@ Nextflow use.
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [architecture](docs/architecture.md), and
-[upstream provenance](docs/UPSTREAM.md). Licensed under Apache-2.0.
+[upstream provenance](docs/UPSTREAM.md).
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE) (Apache-2.0).
+Third-party code and attribution are documented in [upstream provenance](docs/UPSTREAM.md).
