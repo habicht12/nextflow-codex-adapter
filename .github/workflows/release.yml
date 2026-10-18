@@ -51,6 +51,9 @@ jobs:
           version: '26.10.2'
       - run: ./gradlew install
       - run: node validation/run.mjs
+      - name: Export the same runtime for public installation without registry login
+        run: |
+          docker save "ghcr.io/habicht12/nf-agent-codex:$(cat VERSION)" | gzip > "build/distributions/nf-agent-codex-$(cat VERSION)-image-linux-amd64.tar.gz"
       - name: Prepare release metadata
         run: node scripts/release-metadata.mjs
       - name: Publish image

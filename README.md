@@ -26,8 +26,11 @@ nextflow run examples/qc
 ```
 
 `bin/install` uses Nextflow's supported release-metadata mechanism to install
-the prebuilt plugin from GitHub. The plugin is not yet listed in the central
-Nextflow registry. To build it yourself instead, run `./gradlew install`.
+the prebuilt plugin from GitHub and downloads the runtime. If GHCR does not allow
+anonymous access, it loads the identical image from the public release after
+checksum verification. No GitHub or registry login is required. The plugin is
+not yet listed in the central Nextflow registry. To build it yourself instead,
+run `./gradlew install` and the image build command in CONTRIBUTING.md.
 
 Login displays a URL and one-time code. Enable device-code login in your account
 if required. Credentials remain in `~/.local/state/nf-agent-codex`, outside this

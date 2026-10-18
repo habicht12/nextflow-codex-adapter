@@ -3,4 +3,18 @@ set -euo pipefail
 version=$(cat "$(dirname "$0")/../VERSION")
 metadata="https://github.com/habicht12/nextflow-codex-adapter/releases/download/v${version}/nf-agent-codex-${version}-meta.json"
 export NXF_PLUGINS_TEST_REPOSITORY="${NXF_PLUGINS_TEST_REPOSITORY:+$NXF_PLUGINS_TEST_REPOSITORY,}$metadata"
-exec nextflow plugin install "nf-agent-codex@$version"
+nextflow plugin install "nf-agent-codex@$version"
+image="ghcr.io/habicht12/nf-agent-codex:$version"
+if ! docker pull "$image"; then
+  # GitHub container packages can remain private independently of their repository.
+  # The release archive gives public users the exact same image without registry login.
+  echo 'Downloading the runtime from the public GitHub release.'
+  temporary=$(mktemp -d)
+  trap 'rm -rf "$temporary"' EXIT
+  archive="nf-agent-codex-${version}-image-linux-amd64.tar.gz"
+  release="https://github.com/habicht12/nextflow-codex-adapter/releases/download/v${version}"
+  curl -fL --retry 3 "$release/$archive" -o "$temporary/$archive"
+  curl -fL --retry 3 "$release/SHA512SUMS" -o "$temporary/SHA512SUMS"
+  (cd "$temporary" && sha512sum --check --ignore-missing SHA512SUMS)
+  docker load --input "$temporary/$archive"
+fi

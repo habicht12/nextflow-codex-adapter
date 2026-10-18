@@ -43,7 +43,9 @@ The manually triggered **Release artifacts** workflow runs checks, builds the
 runtime, executes integration and sandbox tests, pushes the image and creates a
 draft GitHub release with the plugin ZIP, metadata and checksum. Run it only from
 a reviewed commit with successful CI. Verify public image access and the draft's
-contents before publishing. Tags and published runtime versions are immutable;
+contents before publishing. The release includes a checksummed runtime archive
+so installation also works when the container package's visibility is private.
+Tags and published runtime versions are immutable;
 use a new version for a changed release.
 
 The release metadata is consumed by `bin/install` through Nextflow's
