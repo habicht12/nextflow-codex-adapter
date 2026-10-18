@@ -10,7 +10,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  sandbox:
+    name: Linux sandbox
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --prefix runner
+      - run: npm install --global --ignore-scripts "@openai/codex@$(cat runner/CODEX_VERSION)"
+      - run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      - run: |
+          native=$(find "$(npm root --global)/@openai/codex" -path '*/bin/codex' -type f)
+          ln -s "$native" "$(npm prefix --global)/bin/codex-linux-sandbox"
+          RUNNER_ROOT="$PWD/runner" CODEX_RUNTIME_ROOT="$(npm prefix --global)" node validation/check-sandbox.mjs
   package:
+    needs: sandbox
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -34,10 +51,6 @@ jobs:
           version: '26.10.2'
       - run: ./gradlew install
       - run: node validation/run.mjs
-      - run: >-
-          docker run --rm --security-opt seccomp=unconfined
-          -v "$PWD/validation/check-sandbox.mjs:/check-sandbox.mjs:ro"
-          ghcr.io/habicht12/nf-agent-codex:$(cat VERSION) node /check-sandbox.mjs
       - name: Prepare release metadata
         run: node scripts/release-metadata.mjs
       - name: Publish image

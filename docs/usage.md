@@ -42,6 +42,9 @@ Codex sandbox through `--security-opt seccomp=unconfined`. No privileged contain
 or Docker socket is used. The sandbox permits task writes, read-only system tools
 and staged inputs, denies the credential directory, and blocks shell networking.
 The runner fails if it cannot enforce the sandbox.
+This profile is tested on WSL2. Hosts with AppArmor policies that prohibit nested
+mounts are not supported for shell tools; use Nextflow analysis modules there.
+The project does not change or disable the host's AppArmor policy.
 
 For reproducible analysis dependencies, build an image `FROM` the released runner
 and install fixed package versions, then select it with `agent.container`. Keep

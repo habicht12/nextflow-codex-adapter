@@ -61,9 +61,11 @@ export class TaskFiles {
 
   async find(name = '.', pattern = '') {
     const results = [];
+    let visited = 0;
     const visit = async (dir, depth) => {
       if (depth > 16 || results.length >= 1000) return;
       for (const entry of await fs.readdir(await this.resolve(dir), { withFileTypes: true })) {
+        if (++visited > 10000) throw new Error('Directory search exceeds 10000 entries');
         const child = path.join(dir, entry.name);
         if (child.includes(pattern)) results.push(child);
         if (entry.isDirectory()) await visit(child, depth + 1);
@@ -79,6 +81,9 @@ export function shellPermissions(files, home) {
   for (const dir of ['/usr', '/bin', '/lib', '/lib64', '/etc']) filesystem[dir] = 'read';
   filesystem[files.root] = 'write';
   for (const input of files.inputs) filesystem[input] = 'read';
-  filesystem[home] = 'deny';
+  // Codex re-executes its sandbox helper from this directory. Expose only those
+  // helpers; :minimal leaves the rest of the login directory inaccessible.
+  filesystem[path.join(home, 'tmp', 'arg0-linux')] = 'read';
+  filesystem[path.join(home, 'auth.json')] = 'deny';
   return { filesystem, network: { enabled: false } };
 }

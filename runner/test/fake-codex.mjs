@@ -51,6 +51,9 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       queue = [['activate_skill', { name: 'qc' }], ['read_skill_resource', { skill: 'qc', path: 'guide.txt' }]];
       return next();
     }
+    if (schema?.properties?.value) return complete(JSON.stringify({ value: 42 }));
+    if (schema?.properties?.answer?.type === 'integer') return complete(JSON.stringify({ answer: 42 }));
+    if (schema?.properties?.note) return complete(JSON.stringify({ answer: 'HELLO', note: null }));
     complete(fault === 'json' ? '{invalid' : schema ? JSON.stringify({ answer: 'HELLO' }) : 'HELLO');
   }
   if (m.id === 50 && m.result) {

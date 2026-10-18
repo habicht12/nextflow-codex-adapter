@@ -4,6 +4,10 @@ The supported baseline is Nextflow 26.10.0/26.10.2 and Codex 0.163.0, running in
 local Docker on Linux/WSL2 amd64. Other executors and architectures have not been
 validated. A remote executor also needs a reachable Nextflow RPC broker and a
 private login store on its execution host; a local bind mount is not portable.
+Containerized shell execution is tested on WSL2. Docker hosts whose AppArmor
+policy blocks nested sandbox mounts cannot use shell tools with this release.
+The plugin does not disable AppArmor. Ordinary module and filesystem agents do
+not require nested namespaces and remain covered by the Linux container CI.
 
 | Feature | Behavior |
 | --- | --- |
@@ -31,6 +35,10 @@ private login store on its execution host; a local bind mount is not portable.
 - Filesystem tools limit individual reads/writes to 1 MiB. `grep` is a literal-text
   search; `find` uses a substring pattern and bounded recursion. Use analysis
   processes for large datasets.
+- Opaque file handles returned by modules can be passed to another declared
+  module. Direct filesystem access still requires the file to be staged or
+  otherwise present in the agent's allowed container filesystem. Small structured
+  tool outputs are inlined by Nextflow under its normal size limit.
 - `requestTimeout` bounds an inference segment, excluding time spent waiting for
   declared tools. Nextflow's `time` bounds the whole task. `maxIterations` bounds
   tool calls, including skill and filesystem calls. Shell commands have a 60 s
@@ -44,4 +52,5 @@ Plain Docker containers run module/file agents. Shell agents additionally need
 Linux user namespaces for Codex's inner sandbox. The supplied shell profile relaxes
 Docker's outer seccomp filter to permit this; the inner Codex sandbox remains
 mandatory. If the host prohibits user namespaces, shell calls fail rather than
-falling back to unrestricted execution.
+falling back to unrestricted execution. CI tests the inner sandbox independently
+on a Linux host; it does not claim that every Docker security policy permits it.

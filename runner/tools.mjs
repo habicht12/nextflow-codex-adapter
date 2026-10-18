@@ -5,7 +5,7 @@ const object = (properties, required = Object.keys(properties)) => ({ type: 'obj
 const string = { type: 'string' };
 
 export class ToolSet {
-  constructor(spec, files, client, broker, trace = () => {}) {
+  constructor(spec, files, client, broker, trace = () => {}, sandboxFilesystem = null) {
     this.tools = new Map();
     this.calls = 0;
     this.limit = spec.maxIterations ?? 20;
@@ -34,7 +34,7 @@ export class ToolSet {
         const result = await client.call('command/exec', {
           command: ['/bin/bash', '--noprofile', '--norc', '-c', command], cwd: files.root,
           permissionProfile: 'nf_task', timeoutMs: 60000, outputBytesCap: 32768,
-          env: { HOME: files.root, BASH_ENV: null, ENV: null },
+          env: { HOME: null, BASH_ENV: null, ENV: null },
         }, 65000);
         if (result.exitCode !== 0) throw new Error(`Shell exited ${result.exitCode}: ${result.stderr.slice(0,2048)}`);
         return JSON.stringify(result);
@@ -43,7 +43,8 @@ export class ToolSet {
     for (const name of spec.nativeToolNames ?? []) {
       if (!native[name]) throw new Error(`Unsupported native tool: ${name}`);
       const [schema, run] = native[name];
-      add(name, name === 'grep' ? 'Find literal text in a task file' : `Task-local ${name}`, schema, run);
+      const execute = name !== 'bash' && sandboxFilesystem ? (args) => sandboxFilesystem(name, args) : run;
+      add(name, name === 'grep' ? 'Find literal text in a task file' : `Task-local ${name}`, schema, execute);
     }
 
     if (spec.skills?.length) {
@@ -87,4 +88,44 @@ export function validateOutput(schema, text) {
   const validate = ajv.compile(schema);
   if (!validate(output)) throw new Error(`Output does not match schema: ${ajv.errorsText(validate.errors)}`);
   return JSON.stringify(output);
+}
+
+// Codex structured output requires an object root and all object fields required.
+// Nextflow also supports scalar/list roots and optional record fields.
+export function outputContract(schema) {
+  if (!schema) return { schema: null, decode: (text) => validateOutput(null, text) };
+  const strict = (source) => {
+    const result = structuredClone(source);
+    if (result.type === 'object' && result.properties) {
+      const required = new Set(result.required || []);
+      result.properties = Object.fromEntries(Object.entries(result.properties).map(([key, child]) => [key,
+        required.has(key) ? strict(child) : { anyOf: [strict(child), { type: 'null' }] }]));
+      result.required = Object.keys(result.properties);
+      result.additionalProperties = false;
+    }
+    if (result.items) result.items = strict(result.items);
+    if (result.anyOf) result.anyOf = result.anyOf.map(strict);
+    return result;
+  };
+  const restore = (source, value) => {
+    if (Array.isArray(value) && source.items) return value.map((item) => restore(source.items, item));
+    if (value && typeof value === 'object' && source.properties) {
+      const result = { ...value };
+      for (const [key, child] of Object.entries(source.properties)) {
+        if (result[key] === null && !(source.required || []).includes(key) && !ajv.compile(child)(null)) delete result[key];
+        else if (key in result) result[key] = restore(child, result[key]);
+      }
+      return result;
+    }
+    return value;
+  };
+  const wrapped = schema.type !== 'object';
+  const wireSchema = strict(wrapped ? object({ value: schema }) : schema);
+  return {
+    schema: wireSchema,
+    decode: (text) => {
+      const wire = JSON.parse(validateOutput(wireSchema, text));
+      return validateOutput(schema, JSON.stringify(restore(schema, wrapped ? wire.value : wire)));
+    },
+  };
 }

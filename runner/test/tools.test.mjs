@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { TaskFiles } from '../files.mjs';
-import { ToolSet, validateOutput } from '../tools.mjs';
+import { ToolSet, validateOutput, outputContract } from '../tools.mjs';
 
 test('filesystem permits staged reads and refuses escapes and input writes', async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nf-codex-files-'));
@@ -45,4 +45,22 @@ test('schema validation refuses plausible but wrong results', () => {
   assert.throws(() => validateOutput({ type: 'integer' }, '"7"'), /schema/);
   assert.throws(() => validateOutput(null, ''), /no final/);
   assert.equal(validateOutput({ type: 'integer' }, '7'), '7');
+});
+
+test('scalar and list output contracts preserve Nextflow types', () => {
+  for (const [schema, value] of [[{ type: 'integer' }, 42], [{ type: 'boolean' }, true], [{ type: 'string' }, 'hello'], [{ type: 'array', items: { type: 'integer' } }, [1, 2]]]) {
+    const contract = outputContract(schema);
+    assert.equal(contract.schema.type, 'object');
+    assert.equal(contract.decode(JSON.stringify({ value })), JSON.stringify(value));
+  }
+  assert.throws(() => outputContract({ type: 'integer' }).decode('{"value":"42"}'), /schema/);
+});
+
+test('optional fields remain optional after strict provider validation', () => {
+  const original = { type: 'object', properties: { answer: { type: 'integer' }, note: { type: 'string' } }, required: ['answer'], additionalProperties: false };
+  const contract = outputContract(original);
+  assert.deepEqual(contract.schema.required, ['answer', 'note']);
+  assert.equal(contract.decode('{"answer":42,"note":null}'), '{"answer":42}');
+  assert.equal(contract.decode('{"answer":42,"note":"checked"}'), '{"answer":42,"note":"checked"}');
+  assert.deepEqual(original.required, ['answer']);
 });

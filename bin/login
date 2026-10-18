@@ -7,6 +7,6 @@ mkdir -p "$login_dir"
 chmod 700 "$login_dir"
 login_dir=$(cd "$login_dir" && pwd)
 exec docker run --rm -it --user "$(id -u):$(id -g)" \
-  -e CODEX_HOME=/opt/codex-home -e HOME=/opt/codex-home \
+  -e CODEX_HOME=/opt/codex-home \
   -v "$login_dir:/opt/codex-home" "$image" \
   codex -c 'cli_auth_credentials_store="file"' login --device-auth

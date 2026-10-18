@@ -23,12 +23,12 @@ async function run(extra = [], workflow = 'features.nf') {
 }
 try {
   const fresh = await run();
-  for (const expected of ['ANSWER=HELLO', 'ANSWER=WORLD', 'REPORT=fixture report', 'SKILL=Threshold 7'])
+  for (const expected of ['ANSWER=HELLO', 'ANSWER=WORLD', 'REPORT=fixture report', 'SKILL=Threshold 7', 'SCALAR=42', 'OPTIONAL=HELLO'])
     assert.ok(fresh.text.includes(expected), fresh.text);
-  assert.equal(fresh.rows.length, 6);
+  assert.equal(fresh.rows.length, 8);
   assert.ok(fresh.rows.every((r) => r.status === 'COMPLETED'));
   const resumed = await run(['-resume']);
-  assert.equal(resumed.rows.length, 4); // Cached agents do not invoke their nested tools again.
+  assert.equal(resumed.rows.length, 6); // Cached agents do not invoke their nested tools again.
   assert.ok(resumed.rows.every((r) => r.status === 'CACHED'));
   const changed = await run(['-resume', '--word', 'changed'], 'main.nf');
   assert.ok(changed.text.includes('ANSWER=CHANGED'));
