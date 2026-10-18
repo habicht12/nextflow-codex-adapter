@@ -22,6 +22,21 @@ Live verification is separate: use `bin/login`, then run `examples/qc` and
 model prose. These runs use your account quota; do not put account credentials in
 public CI. A mocked response is not evidence of live-model compatibility.
 
+For a fresh-login and token-refresh check, use a separate private login directory
+with `NXF_CODEX_HOME=/absolute/path bin/login`. Then run the check below. It asks
+Codex to refresh its managed ChatGPT tokens and verifies that the saved login
+works after restarting App Server. It prints no credentials or account details.
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "/absolute/path:/opt/codex-home" \
+  -v "$PWD/validation/check-login.mjs:/check-login.mjs:ro" \
+  ghcr.io/habicht12/nf-agent-codex:$(cat VERSION) node /check-login.mjs
+```
+
+This is an explicit live account operation, not part of CI. Do not simulate a
+refresh by editing token contents or expiry fields.
+
 Keep changes focused. Include behavior tests and update the affected usage or
 compatibility documentation. Prefer Nextflow's task lifecycle to new scheduling
 or caching code. Preserve upstream notices. Use ordinary factual commit messages

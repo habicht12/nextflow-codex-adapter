@@ -57,7 +57,7 @@ nextflow run examples/qc --model openai/gpt-6-luna
 Install the plugin once with `bin/install`, then add it to your Nextflow config:
 
 ```groovy
-plugins { id 'nf-agent-codex@0.1.0' }
+plugins { id 'nf-agent-codex@0.1.1' }
 docker.enabled = true
 agent {
     runner = 'codex'
@@ -71,6 +71,20 @@ Define your agents using Nextflow's existing `input`, `output`, `instruction`,
 `prompt`, `tools` and `skills` syntax. See the [QC example](examples/qc/main.nf)
 for a complete workflow, or [usage](docs/usage.md) for configuration and shell
 execution. No samplesheet-specific logic is built into the runner.
+
+## Upgrade from 0.1.0
+
+Version 0.1.1 fixes staged-input write protection. In 0.1.0, copied and hard-linked
+inputs were not identified as read-only; writing a hardlink could modify its source.
+Upgrade before using those staging modes with agent write or shell tools.
+
+```bash
+git pull --ff-only
+./bin/install
+```
+
+In your own pipelines, update the plugin pin to `nf-agent-codex@0.1.1` and update
+any explicitly selected runner image. Existing login directories can be reused.
 
 ## What is tested
 
