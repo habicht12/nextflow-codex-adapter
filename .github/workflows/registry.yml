@@ -1,0 +1,94 @@
+name: Publish to Nextflow registry
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published GitHub release tag (for example v0.1.2)
+        required: true
+        type: string
+      dry_run:
+        description: Check the release without publishing to the registry
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: registry-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the release and its successful build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$RELEASE_TAG" = "v$(cat VERSION)"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          git merge-base --is-ancestor HEAD origin/main
+          gh release view "$RELEASE_TAG" --json isDraft,tagName |
+            jq -e --arg tag "$RELEASE_TAG" '.isDraft == false and .tagName == $tag'
+          gh run list --workflow release.yml --commit "$(git rev-parse HEAD)" \
+            --status success --json databaseId | jq -e 'length > 0'
+          for heading in Summary 'Get Started' Examples License; do
+            grep -Fxq "## $heading" README.md || {
+              echo "Missing README section: $heading. Publish a new GitHub release with the registry-ready README." >&2
+              exit 1
+            }
+          done
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Download and verify the published plugin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          archive="nf-agent-codex-$(cat VERSION).zip"
+          gh release download "$RELEASE_TAG" --dir build/distributions \
+            --pattern "$archive" --pattern SHA512SUMS
+          (cd build/distributions && sha512sum --check --ignore-missing SHA512SUMS)
+          mkdir -p build/resources/main/META-INF
+          unzip -p "build/distributions/$archive" classes/META-INF/spec.json \
+            > build/resources/main/META-INF/spec.json
+      - name: Check the publishing task without uploading
+        run: ./gradlew releasePlugin -x packagePlugin --dry-run
+      - name: Publish the original release archive
+        if: ${{ !inputs.dry_run }}
+        env:
+          NPR_API_KEY: ${{ secrets.NPR_API_KEY }}
+          NPR_API_URL: https://registry.nextflow.io/api
+        run: |
+          test -n "$NPR_API_KEY" || { echo 'Set the NPR_API_KEY Actions secret after registry approval.' >&2; exit 1; }
+          # Preserve the exact ZIP and spec verified above; do not rebuild them.
+          ./gradlew releasePlugin -x packagePlugin
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: ${{ !inputs.dry_run }}
+        with:
+          node-version: '22'
+      - uses: nf-core/setup-nextflow@893c28b667aedeba26e37f296d260ccc5bc4d914
+        if: ${{ !inputs.dry_run }}
+        with:
+          version: '26.10.2'
+      - name: Verify installation from the public registry
+        if: ${{ !inputs.dry_run }}
+        env:
+          NXF_PLUGINS_DIR: ${{ runner.temp }}/registry-plugins
+          NXF_PLUGINS_TEST_REPOSITORY: ''
+        run: |
+          nextflow plugin install "nf-agent-codex@$(cat VERSION)"
+          node validation/run.mjs

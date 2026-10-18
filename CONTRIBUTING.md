@@ -66,3 +66,30 @@ use a new version for a changed release.
 The release metadata is consumed by `bin/install` through Nextflow's
 `NXF_PLUGINS_TEST_REPOSITORY` mechanism. Central registry publication is a separate
 maintainer registration step and is not needed for GitHub-release installation.
+
+### Nextflow registry
+
+The separate **Publish to Nextflow registry** workflow promotes a published GitHub
+release to the central registry. It requires the plugin ownership claim for
+`nf-agent-codex`, provider `habicht12`, to be approved. Create a registry access
+token and save it as the repository Actions secret `NPR_API_KEY`.
+See the [registry instructions](https://docs.seqera.io/nextflow/plugins/plugin-registry).
+
+Run the workflow from `main`, supplying the published release tag. Leave
+`dry_run` enabled first: it checks the tag, the successful **Release artifacts**
+run, the required README sections, and the downloaded ZIP checksum. It also
+checks the Gradle task graph without contacting the registry or needing a token.
+Versions 0.1.0 and 0.1.1 predate the required README structure; publish a new
+GitHub release containing these changes before the first registry publication.
+Do not move an existing tag or replace its artifacts.
+
+After the dry run succeeds, run it again with `dry_run` disabled. The workflow
+uploads the original GitHub ZIP and its embedded plugin spec using
+`releasePlugin -x packagePlugin`, without rebuilding the archive. Only that step
+receives the registry token. It then installs the plugin from the public registry
+into an empty plugin directory and runs the offline integration tests.
+
+An existing registry version is an error, not an overwrite. If upload succeeded
+but the installation check failed, investigate and rerun the installation check
+separately; do not republish that version. Keep the GitHub installation path in
+the user documentation until the first registry installation has been verified.
