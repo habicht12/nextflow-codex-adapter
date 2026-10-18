@@ -1,0 +1,39 @@
+plugins {
+    id 'io.nextflow.nextflow-plugin' version '1.0.0-beta.15'
+}
+
+version = '0.1.0'
+
+nextflowPlugin {
+    nextflowVersion = '26.10.0'
+    provider = 'habicht12'
+    description = 'Run native Nextflow agents with a Codex subscription'
+    className = 'io.github.habicht12.codex.CodexPlugin'
+    extensionPoints = ['io.github.habicht12.codex.CodexRunner']
+}
+
+dependencies {
+    implementation 'io.grpc:grpc-api:1.75.0'
+    implementation 'io.grpc:grpc-stub:1.75.0'
+    implementation 'io.grpc:grpc-netty-shaded:1.75.0'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.85'
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.85'
+}
+
+def imageResources = layout.buildDirectory.dir('generated/image-resources')
+tasks.register('runnerImage') {
+    inputs.property('version', project.version)
+    outputs.dir(imageResources)
+    doLast {
+        def target = imageResources.get().file('META-INF/codex-image.properties').asFile
+        target.parentFile.mkdirs()
+        target.text = "image=ghcr.io/habicht12/nf-agent-codex:${project.version}\n"
+    }
+}
+sourceSets.main.resources.srcDir(tasks.named('runnerImage'))
+
+tasks.register('runnerTest', Exec) {
+    workingDir 'runner'
+    commandLine 'npm', 'test'
+}
+tasks.named('check') { dependsOn 'runnerTest' }

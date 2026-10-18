@@ -1,0 +1,8 @@
+.gradle/
+build/
+node_modules/
+.nextflow*
+work/
+results/
+.env
+*.log
