@@ -7,6 +7,16 @@ const fault = process.env.TEST_CODEX_FAULT;
 let model;
 let tools;
 let schema;
+let queue = [];
+let answer;
+function next() {
+  if (queue.length) {
+    const [tool, args] = queue.shift();
+    return send({ id: 50, method: 'item/tool/call', params: { tool, arguments: args, callId: `call-${++next.id}` } });
+  }
+  complete(schema ? JSON.stringify({ answer: answer || 'HELLO' }) : answer || 'HELLO');
+}
+next.id = 0;
 function complete(text) {
   send({ method: 'item/completed', params: { item: { type: 'agentMessage', phase: 'final_answer', text } } });
   send({ method: 'turn/completed', params: { turn: { id: 'turn', status: fault === 'failed' ? 'failed' : 'completed' } } });
@@ -28,15 +38,27 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     reply(m.id, { turn: { id: 'turn' } });
     if (fault === 'timeout') return;
     if (fault === 'interactive') return send({ id: 50, method: 'item/commandExecution/requestApproval', params: {} });
-    if (tools.some((t) => t.name === 'uppercase'))
-      return send({ id: 50, method: 'item/tool/call', params: { tool: 'uppercase', arguments: { text: 'hello' }, callId: 'call-1' } });
+    if (tools.some((t) => t.name === 'uppercase')) {
+      const word = m.params.input[0].text.match(/provided tool: (\w+)/)?.[1] || 'hello';
+      queue = [['uppercase', { text: word }]];
+      return next();
+    }
+    if (tools.some((t) => t.name === 'write')) {
+      queue = [['read', { path: 'input.txt' }], ['write', { path: 'report.txt', content: 'fixture report\n' }]];
+      return next();
+    }
+    if (tools.some((t) => t.name === 'activate_skill')) {
+      queue = [['activate_skill', { name: 'qc' }], ['read_skill_resource', { skill: 'qc', path: 'guide.txt' }]];
+      return next();
+    }
     complete(fault === 'json' ? '{invalid' : schema ? JSON.stringify({ answer: 'HELLO' }) : 'HELLO');
   }
   if (m.id === 50 && m.result) {
     if (m.result.success) {
       let text = m.result.contentItems[0].text.trim();
       try { text = JSON.parse(text).result ?? text; } catch {}
-      complete(schema ? JSON.stringify({ answer: text }) : text);
+      answer = text;
+      next();
     }
   }
   if (m.method === 'turn/interrupt') { reply(m.id, {}); process.exit(0); }

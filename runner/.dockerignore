@@ -2,5 +2,6 @@
 !*.mjs
 !package.json
 !package-lock.json
+!CODEX_VERSION
 !agent-rpc/
 !agent-rpc/**

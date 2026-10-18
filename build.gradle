@@ -2,7 +2,7 @@ plugins {
     id 'io.nextflow.nextflow-plugin' version '1.0.0-beta.15'
 }
 
-version = '0.1.0'
+version = file('VERSION').text.trim()
 
 nextflowPlugin {
     nextflowVersion = '26.10.0'

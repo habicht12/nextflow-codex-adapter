@@ -8,10 +8,12 @@ RUN go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /agent
 FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392
 LABEL org.opencontainers.image.source="https://github.com/habicht12/nextflow-codex-adapter"
 WORKDIR /opt/nf-agent-codex
+COPY CODEX_VERSION ./
 RUN apt-get update && apt-get install -y --no-install-recommends bash procps ca-certificates python3 bubblewrap \
     && rm -rf /var/lib/apt/lists/* \
-    && npm install --global --ignore-scripts @openai/codex@0.163.0 \
+    && npm install --global --ignore-scripts "@openai/codex@$(cat CODEX_VERSION)" \
     && npm cache clean --force
+RUN ln -s "$(find /usr/local/lib/node_modules/@openai/codex -path '*/bin/codex' -type f)" /usr/local/bin/codex-linux-sandbox
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --omit=dev && npm cache clean --force
 COPY *.mjs ./

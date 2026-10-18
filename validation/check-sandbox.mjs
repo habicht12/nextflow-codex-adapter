@@ -23,6 +23,11 @@ try {
   const denied = await run('cat /tmp/login/private');
   assert.notEqual(denied.exitCode, 0);
   assert.ok(!denied.stdout.includes('fixture-secret'));
+  const symlink = await run('ln -s /tmp/login/private secret-link; cat secret-link');
+  assert.notEqual(symlink.exitCode, 0);
+  assert.ok(!symlink.stdout.includes('fixture-secret'));
+  const network = await run("python3 -c 'import socket; socket.create_connection((\"1.1.1.1\", 443), 2)'");
+  assert.notEqual(network.exitCode, 0);
   const escape = await run('touch /etc/nf-codex-escape');
   assert.notEqual(escape.exitCode, 0);
   console.log('Sandbox: calculation, task writes, credential denial and outside-write denial passed');

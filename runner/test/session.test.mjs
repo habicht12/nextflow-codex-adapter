@@ -62,6 +62,17 @@ test('external cancellation stops an active turn', async (t) => {
   await assert.rejects(runAgent(spec, { ...options, signal: controller.signal }), /cancelled/);
 });
 
+test('model response timeout excludes time spent in Nextflow modules', async (t) => {
+  const spec = await fixture(t);
+  spec.requestTimeoutSeconds = 0.15;
+  spec.toolSpecs = [{ name: 'uppercase', inputSchema: { type: 'object' } }];
+  const result = await runAgent(spec, { ...options, broker: async () => {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return 'HELLO';
+  } });
+  assert.equal(JSON.parse(result.output).answer, 'HELLO');
+});
+
 test('rejects inherited user configuration and API credentials', async (t) => {
   const spec = await fixture(t);
   process.env.OPENAI_API_KEY = 'fixture';

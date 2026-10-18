@@ -4,7 +4,8 @@ import { CodexClient } from './client.mjs';
 import { TaskFiles, shellPermissions } from './files.mjs';
 import { ToolSet, validateOutput } from './tools.mjs';
 
-export const CODEX_VERSION = '0.163.0';
+export const CODEX_VERSION = (await fs.readFile(new URL('./CODEX_VERSION', import.meta.url), 'utf8')).trim();
+const VERSION = JSON.parse(await fs.readFile(new URL('./package.json', import.meta.url), 'utf8')).version;
 
 export function toml(value) {
   if (typeof value === 'string') return JSON.stringify(value);
@@ -19,7 +20,7 @@ export async function runAgent(spec, { broker, trace = () => {}, signal, command
   for (const key of ['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'CODEX_ACCESS_TOKEN'])
     if (process.env[key]) throw new Error(`${key} is set; the codex runner requires ChatGPT login without API overrides`);
   // A dedicated login directory avoids inheriting personal MCP servers, hooks and plugins.
-  for (const entry of ['config.toml', 'AGENTS.md', 'AGENTS.override.md', 'skills', 'plugins', 'rules']) {
+  for (const entry of ['config.toml', 'AGENTS.md', 'AGENTS.override.md']) {
     try { await fs.access(path.join(home, entry)); }
     catch { continue; }
     throw new Error(`Use a dedicated login directory without ${entry}; see the login instructions`);
@@ -40,6 +41,18 @@ export async function runAgent(spec, { broker, trace = () => {}, signal, command
     'features.shell_tool': false,
     'features.multi_agent': false,
     'features.apps': false,
+    'features.plugins': false,
+    'features.remote_plugin': false,
+    'features.hooks': false,
+    'features.skip_host_skill_discovery': true,
+    'features.skill_mcp_dependency_install': false,
+    'features.browser_use': false,
+    'features.computer_use': false,
+    'features.image_generation': false,
+    'features.view_image': false,
+    'features.goals': false,
+    'features.sleep_tool': false,
+    'features.shell_snapshot': false,
     'web_search': 'disabled',
     'project_doc_max_bytes': 0,
   };
@@ -57,6 +70,14 @@ export async function runAgent(spec, { broker, trace = () => {}, signal, command
   const fail = (error) => { failure ??= error; if (!settled) { settled = true; reject(error); } };
   const toolset = new ToolSet(spec, files, client, broker, trace);
   const inFlight = new Set();
+  let timeout;
+  const armTimeout = () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      fail(new Error('Codex agent exceeded its response timeout'));
+      void client.close();
+    }, (spec.requestTimeoutSeconds || 300) * 1000);
+  };
   client.on('failure', fail);
   client.on('message', (message) => {
     if (message.id !== undefined) {
@@ -65,6 +86,7 @@ export async function runAgent(spec, { broker, trace = () => {}, signal, command
         fail(new Error(`Unexpected interactive request: ${message.method}`));
         return;
       }
+      clearTimeout(timeout);
       const { tool, arguments: args, callId } = message.params;
       const operation = toolset.call(tool, args, callId).then((text) => {
         client.send({ id: message.id, result: { success: true, contentItems: [{ type: 'inputText', text }] } });
@@ -72,7 +94,10 @@ export async function runAgent(spec, { broker, trace = () => {}, signal, command
         try { client.send({ id: message.id, result: { success: false, contentItems: [{ type: 'inputText', text: error.message }] } }); } catch {}
         // A failed Nextflow tool must fail the agent, not turn into a successful narrative.
         fail(error);
-      }).finally(() => inFlight.delete(operation));
+      }).finally(() => {
+        inFlight.delete(operation);
+        if (!inFlight.size && !settled) armTimeout();
+      });
       inFlight.add(operation);
       return;
     }
@@ -92,13 +117,11 @@ export async function runAgent(spec, { broker, trace = () => {}, signal, command
     void client.close();
   };
   signal?.addEventListener('abort', abort, { once: true });
-  const timeout = setTimeout(() => {
-    fail(new Error('Codex agent exceeded its response timeout'));
-    void client.close();
-  }, (spec.requestTimeoutSeconds || 300) * 1000);
+  armTimeout();
   try {
     if (signal?.aborted) throw new Error('Agent invocation cancelled');
-    await client.call('initialize', { clientInfo: { name: 'nf_agent_codex', title: 'Nextflow Codex runner', version: '0.1.0' }, capabilities: { experimentalApi: true } });
+    const initialized = await client.call('initialize', { clientInfo: { name: 'nf_agent_codex', title: 'Nextflow Codex runner', version: VERSION }, capabilities: { experimentalApi: true } });
+    if (!initialized.userAgent?.includes(`/${CODEX_VERSION}`)) throw new Error(`This runner requires Codex ${CODEX_VERSION}; use its published runtime image`);
     client.send({ method: 'initialized', params: {} });
     const account = await client.call('account/read', { refreshToken: false });
     if (account.account?.type !== 'chatgpt') throw new Error('ChatGPT login required; run the documented login command');

@@ -10,6 +10,8 @@ Imported files:
   RPC classes, with package names changed. The start frame additionally carries
   Nextflow's request timeout, which the original portable spec omits.
 - `runner/agent-rpc/`: the Go transport and its tests, unchanged.
+- `src/test/groovy/io/github/habicht12/codex/rpc/`: the four upstream RPC,
+  TLS and redaction test suites, with package names changed.
 
 These implement the runner-neutral Nextflow wire protocol, not the Pi model
 runtime. Original copyright notices are retained. The Gradle wrapper originates
