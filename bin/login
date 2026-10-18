@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+version=$(cat "$(dirname "$0")/../VERSION")
+image=ghcr.io/habicht12/nf-agent-codex:$version
+login_dir=${NXF_CODEX_HOME:-"$HOME/.local/state/nf-agent-codex"}
+mkdir -p "$login_dir"
+chmod 700 "$login_dir"
+login_dir=$(cd "$login_dir" && pwd)
+exec docker run --rm -it --user "$(id -u):$(id -g)" \
+  -e CODEX_HOME=/opt/codex-home -e HOME=/opt/codex-home \
+  -v "$login_dir:/opt/codex-home" "$image" \
+  codex -c 'cli_auth_credentials_store="file"' login --device-auth
